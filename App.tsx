@@ -87,7 +87,7 @@ export default function App() {
   };
 
   const handleSpeedChange = () => {
-    setPlaybackSpeed((prev) => {
+    setPlaybackSpeed((prev: number) => {
       if (prev === 1.0) return 1.25;
       if (prev === 1.25) return 1.5;
       if (prev === 1.5) return 2.0;
@@ -98,8 +98,8 @@ export default function App() {
   // Filter and Search logic
   const filteredData = MOCK_CATALOG.filter((item) => {
     const matchesSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.author.toLowerCase().includes(searchQuery.toLowerCase());
+      item.title.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1 ||
+      item.author.toLowerCase().indexOf(searchQuery.toLowerCase()) !== -1;
     
     const matchesFilter = activeFilter === 'all' || item.type === activeFilter;
 
