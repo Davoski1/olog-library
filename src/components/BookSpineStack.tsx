@@ -18,7 +18,10 @@ export const BookSpineStack: React.FC<BookSpineStackProps> = ({
   const expandProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Trigger staggered or direct spring animation on mount
+    // Reset the animation to starting position (compacted & tilted)
+    expandProgress.setValue(0);
+
+    // Trigger spring animation
     Animated.spring(expandProgress, {
       toValue: 1,
       damping: 14,
@@ -26,12 +29,29 @@ export const BookSpineStack: React.FC<BookSpineStackProps> = ({
       stiffness: 75,
       useNativeDriver: true, // Animating translateY/translateX transforms supports native driver
     }).start();
-  }, [expandProgress]);
+  }, [books, expandProgress]);
+
+  const rotateY = expandProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-50deg', '-14deg'],
+  });
 
   return (
     <View style={styles.stackContainer}>
       {/* 3D Perspective Wrapper */}
-      <View style={styles.perspectiveWrapper}>
+      <Animated.View
+        style={[
+          styles.perspectiveWrapper,
+          {
+            transform: [
+              { perspective: 1200 },
+              { rotateX: '24deg' },
+              { rotateY: rotateY },
+              { rotateZ: '1deg' },
+            ],
+          },
+        ]}
+      >
         <View style={styles.spineList}>
           {books.map((book, index) => (
             <BookSpine
@@ -44,7 +64,7 @@ export const BookSpineStack: React.FC<BookSpineStackProps> = ({
             />
           ))}
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 };
@@ -60,34 +80,6 @@ const styles = StyleSheet.create({
   perspectiveWrapper: {
     width: '90%',
     maxWidth: 420,
-    ...Platform.select({
-      // We apply 3D transformation to make the entire stack look rotated in space
-      ios: {
-        transform: [
-          { perspective: 1200 },
-          { rotateX: '24deg' },
-          { rotateY: '-14deg' },
-          { rotateZ: '1deg' },
-        ],
-      },
-      android: {
-        transform: [
-          { perspective: 1200 },
-          { rotateX: '24deg' },
-          { rotateY: '-14deg' },
-          { rotateZ: '1deg' },
-        ],
-      },
-      default: {
-        // Web transformation support
-        transform: [
-          { perspective: 1200 },
-          { rotateX: '24deg' },
-          { rotateY: '-14deg' },
-          { rotateZ: '1deg' },
-        ] as any,
-      },
-    }),
   },
   spineList: {
     width: '100%',
