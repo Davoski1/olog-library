@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, FlatList, Text, Platform, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Platform, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { THEME } from './src/theme';
 import { LibraryHeader } from './src/components/LibraryHeader';
-import { BookCard, BookItem } from './src/components/BookCard';
+import { BookItem } from './src/components/BookCard';
+import { BookSpineStack } from './src/components/BookSpineStack';
 import { PlayerWidget } from './src/components/PlayerWidget';
 import { ArrowUpRight, Play } from 'lucide-react-native';
+import * as Updates from 'expo-updates';
 
 const MOCK_CATALOG: BookItem[] = [
   {
@@ -19,7 +21,7 @@ const MOCK_CATALOG: BookItem[] = [
   },
   {
     id: '2',
-    title: 'An Elegant Puzzle: Systems of Engineering Management',
+    title: 'An Elegant Puzzle',
     author: 'Will Larson',
     type: 'epub',
     progress: 68,
@@ -28,7 +30,7 @@ const MOCK_CATALOG: BookItem[] = [
   },
   {
     id: '3',
-    title: 'The Revolt of the Public and the Crisis of Authority',
+    title: 'The Revolt of the Public',
     author: 'Martin Gurri',
     type: 'epub',
     progress: 15,
@@ -37,7 +39,7 @@ const MOCK_CATALOG: BookItem[] = [
   },
   {
     id: '4',
-    title: 'Designing Systems for Scale & Resilience',
+    title: 'Designing Systems for Scale',
     author: 'Stripe Engineering',
     type: 'web',
     progress: 0,
@@ -55,7 +57,7 @@ const MOCK_CATALOG: BookItem[] = [
   },
   {
     id: '6',
-    title: 'The Making of Prince of Persia',
+    title: 'Making of Prince of Persia',
     author: 'Jordan Mechner',
     type: 'pdf',
     progress: 92,
@@ -67,9 +69,40 @@ const MOCK_CATALOG: BookItem[] = [
 export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
-  const [activeItem, setActiveItem] = useState<BookItem | null>(null);
+  const [activeItem, setActiveItem] = useState<BookItem | null>(MOCK_CATALOG[0]); // Default to first book
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+
+  useEffect(() => {
+    async function onFetchUpdateAsync() {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          Alert.alert(
+            'Restart Required',
+            'A new update is available and has been downloaded. Restart the app to apply it.',
+            [
+              {
+                text: 'Restart',
+                onPress: async () => {
+                  await Updates.reloadAsync();
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+        }
+      } catch (error) {
+        console.warn(`Failed to check/fetch updates: ${error}`);
+      }
+    }
+
+    // Checking updates is only applicable in production/release builds, not local dev
+    if (!__DEV__) {
+      onFetchUpdateAsync();
+    }
+  }, []);
 
   // Playback control toggles
   const handleItemPress = (item: BookItem) => {
@@ -106,47 +139,47 @@ export default function App() {
     return matchesSearch && matchesFilter;
   });
 
-  // Spotlight featured item (Stripe Press inspired design)
-  const spotlightItem = MOCK_CATALOG[0];
+  const handleSelectFromStack = (item: BookItem) => {
+    setActiveItem(item);
+  };
 
-  const renderSpotlight = () => {
-    if (searchQuery || activeFilter !== 'all') return null;
+  const renderActiveDetails = () => {
+    if (!activeItem) return null;
 
     return (
-      <View style={styles.spotlightContainer}>
+      <View style={styles.detailsSection}>
         <View style={styles.spotlightHeader}>
-          <Text style={styles.spotlightLabel}>CURRENT SELECTION</Text>
+          <Text style={styles.spotlightLabel}>SELECTED DOCUMENT</Text>
           <ArrowUpRight size={14} color={THEME.colors.accent} />
         </View>
 
         <View style={styles.spotlightCard}>
           {/* Spotlight Cover */}
-          <View style={[styles.spotlightCover, { backgroundColor: spotlightItem.coverColor }]}>
+          <View style={[styles.spotlightCover, { backgroundColor: activeItem.coverColor }]}>
             <View style={styles.spotlightSpineShadow} />
-            <Text style={styles.spotlightCoverTitle}>{spotlightItem.title}</Text>
+            <Text style={styles.spotlightCoverTitle}>{activeItem.title}</Text>
           </View>
 
           {/* Spotlight Description */}
           <View style={styles.spotlightContent}>
-            <Text style={styles.spotlightTitle}>{spotlightItem.title}</Text>
-            <Text style={styles.spotlightAuthor}>by {spotlightItem.author}</Text>
-            <Text style={styles.spotlightSnippet}>
-              "The best books are not summaries of the state of the art, but guides to building it. Explore Gil's practical advice on scaling teams, executives, and structures."
+            <View>
+              <Text style={styles.spotlightTitle}>{activeItem.title}</Text>
+              <Text style={styles.spotlightAuthor}>by {activeItem.author}</Text>
+            </View>
+            <Text style={styles.spotlightSnippet} numberOfLines={3}>
+              A curated physical volume exploring foundational patterns in engineering, management, and technology. Select options to start listening or reading.
             </Text>
 
             <TouchableOpacity
               style={styles.spotlightPlayBtn}
-              onPress={() => handleItemPress(spotlightItem)}
+              onPress={() => handleItemPress(activeItem)}
               activeOpacity={0.8}
             >
               <Play size={12} color={THEME.colors.background} fill={THEME.colors.background} style={styles.spotlightPlayIcon} />
-              <Text style={styles.spotlightPlayText}>Listen Now • {spotlightItem.duration}</Text>
+              <Text style={styles.spotlightPlayText}>Listen Now • {activeItem.duration}</Text>
             </TouchableOpacity>
           </View>
         </View>
-        
-        <View style={styles.spotlightDivider} />
-        <Text style={styles.catalogLabel}>ALL PUBLICATIONS</Text>
       </View>
     );
   };
@@ -163,26 +196,22 @@ export default function App() {
         setActiveFilter={setActiveFilter}
       />
 
-      {/* Grid List */}
-      <FlatList
-        data={filteredData}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <BookCard
-            item={item}
-            isPlaying={isPlaying && activeItem?.id === item.id}
-            onPress={() => handleItemPress(item)}
-            onPlayPress={() => handlePlayPause(item)}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={renderSpotlight}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No documents match your query.</Text>
-          </View>
-        }
-      />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.sectionTitle}>INTERACTIVE 3D LIBRARY STACK</Text>
+        
+        {/* Animated 3D Stack of Book Spines */}
+        <BookSpineStack
+          books={filteredData}
+          selectedBook={activeItem}
+          onSelectBook={handleSelectFromStack}
+        />
+
+        {/* Dynamic Detail Panel */}
+        {renderActiveDetails()}
+      </ScrollView>
 
       {/* Floating Audio Player */}
       <PlayerWidget
@@ -205,12 +234,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: THEME.colors.background,
   },
-  listContent: {
+  scrollContent: {
     padding: THEME.spacing.md,
-    paddingBottom: 110, // Extra padding to clear floating player
+    paddingBottom: 130, // Clearance for floating player
   },
-  spotlightContainer: {
-    marginBottom: THEME.spacing.lg,
+  sectionTitle: {
+    color: THEME.colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginTop: THEME.spacing.sm,
+    marginBottom: THEME.spacing.xs,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  detailsSection: {
+    marginTop: 20,
   },
   spotlightHeader: {
     flexDirection: 'row',
@@ -279,7 +318,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontStyle: 'italic',
     lineHeight: 15,
-    marginVertical: THEME.spacing.xs + 2,
+    marginVertical: THEME.spacing.xs,
   },
   spotlightPlayBtn: {
     flexDirection: 'row',
@@ -298,28 +337,5 @@ const styles = StyleSheet.create({
     color: THEME.colors.background,
     fontSize: 10,
     fontWeight: '700',
-  },
-  spotlightDivider: {
-    height: 1,
-    backgroundColor: THEME.colors.border,
-    marginVertical: THEME.spacing.lg,
-    opacity: 0.5,
-  },
-  catalogLabel: {
-    color: THEME.colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 2,
-    marginBottom: THEME.spacing.sm,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: THEME.spacing.xl,
-  },
-  emptyText: {
-    color: THEME.colors.textMuted,
-    fontSize: 13,
-    fontWeight: '500',
   },
 });
